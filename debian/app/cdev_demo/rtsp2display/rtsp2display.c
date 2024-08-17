@@ -6,7 +6,6 @@
 #include <sp_display.h>
 #include <sp_sys.h>
 #include <sp_vio.h>
-#include <vio/hb_common_vot.h>
 #include <argp.h>
 #include <stdatomic.h>
 #include <signal.h>

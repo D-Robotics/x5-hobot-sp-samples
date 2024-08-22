@@ -22,11 +22,11 @@ output_tensors = None
 
 fcos_postprocess_info = None
 
-def signal_handler(signal, frame):
-    sys.exit(0)
-    global is_stop
-    print("Stopping!\n")
-    is_stop=True
+# def signal_handler(signal, frame):
+#     sys.exit(0)
+#     global is_stop
+#     print("Stopping!\n")
+#     is_stop=True
 
 class hbSysMem_t(ctypes.Structure):
     _fields_ = [
@@ -106,6 +106,7 @@ def signal_handler(signal, frame):
     global is_stop
     print("Stopping!\n")
     is_stop=True
+    sys.exit(0)
 
 
 def get_display_res():

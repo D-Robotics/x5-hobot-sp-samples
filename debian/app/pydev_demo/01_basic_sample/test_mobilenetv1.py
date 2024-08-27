@@ -173,6 +173,7 @@ if __name__ == '__main__':
     # 解析JSON字符串
     data = json.loads(result_str[25:])
 
+    print("=" * 10, "Classification result", "=" * 10)
     # 遍历每一个结果
     for result in data:
         prob = result['prob']  # 得分
@@ -181,3 +182,4 @@ if __name__ == '__main__':
 
         # 打印信息
         print(f"cls id: {label}, Confidence: {prob}, class_name: {name}")
+

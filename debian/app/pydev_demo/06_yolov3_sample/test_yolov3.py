@@ -156,8 +156,8 @@ if __name__ == '__main__':
             output_tensors[i].properties.scale.scaleData = outputs[i].properties.scale_data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
             output_tensors[i].sysMem[0].virAddr = ctypes.cast(outputs[i].buffer.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)), ctypes.c_void_p)
         for j in range(len(outputs[i].properties.shape)):
-            output_tensors[i].properties.validShape.dimensionSize[j] = outputs[i].properties.shape[j]
-            output_tensors[i].properties.alignedShape.dimensionSize[j] = outputs[i].properties.shape[j]
+            output_tensors[i].properties.validShape = ctypes.cast(outputs[i].properties.validShape, ctypes.POINTER(hbDNNTensorShape_t)).contents
+            output_tensors[i].properties.alignedShape = ctypes.cast(outputs[i].properties.alignedShape, ctypes.POINTER(hbDNNTensorShape_t)).contents
 
         libpostprocess.Yolov3doProcess(output_tensors[i], ctypes.pointer(yolov3_postprocess_info), i)
 

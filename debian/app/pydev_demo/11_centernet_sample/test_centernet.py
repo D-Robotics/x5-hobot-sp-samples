@@ -155,7 +155,7 @@ if __name__ == '__main__':
         for j in range(len(outputs[i].properties.shape)):
             output_tensors[i].properties.validShape.dimensionSize[j] = outputs[i].properties.shape[j]
         
-    libpostprocess.CenternetdoProcess(output_tensors[0], output_tensors[1], output_tensors[2], ctypes.pointer(centernet_postprocess_info), 0)
+    libpostprocess.Centernet_resnet101_doProcess(output_tensors[0], output_tensors[1], output_tensors[2], ctypes.pointer(centernet_postprocess_info), 0)
 
     result_str = get_Postprocess_result(ctypes.pointer(centernet_postprocess_info))  
     result_str = result_str.decode('utf-8')  

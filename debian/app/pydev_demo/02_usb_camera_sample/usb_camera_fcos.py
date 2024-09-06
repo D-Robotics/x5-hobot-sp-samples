@@ -147,9 +147,8 @@ def bgr2nv12_opencv(image):
     return nv12
 
 
-def draw_bboxs(image, bboxes, classes=get_classes()):
-    """draw the bboxes in the original image
-    """
+def draw_bboxs(image, bboxes, ori_w, ori_h, target_w, target_h, classes=get_classes()):
+    """draw the bboxes in the original image and rescale the coordinates"""
     num_classes = len(classes)
     image_h, image_w, channel = image.shape
     hsv_tuples = [(1.0 * x / num_classes, 1., 1.) for x in range(num_classes)]
@@ -161,6 +160,10 @@ def draw_bboxs(image, bboxes, classes=get_classes()):
     fontScale = 0.5
     bbox_thick = int(0.6 * (image_h + image_w) / 600)
 
+    # Scaling factors from original to target resolution
+    scale_x = target_w / ori_w
+    scale_y = target_h / ori_h
+
     for i, result in enumerate(bboxes):
         bbox = result['bbox']  # 矩形框位置信息
         score = result['score']  # 得分
@@ -169,6 +172,11 @@ def draw_bboxs(image, bboxes, classes=get_classes()):
 
         # coor = limit_display_cord(bbox)
         coor = [round(i) for i in bbox]
+        # Rescale the bbox coordinates
+        coor[0] = int(coor[0] * scale_x)
+        coor[1] = int(coor[1] * scale_y)
+        coor[2] = int(coor[2] * scale_x)
+        coor[3] = int(coor[3] * scale_y)
 
         bbox_color = colors[id]
         c1, c2 = (coor[0], coor[1]), (coor[2], coor[3])
@@ -347,7 +355,8 @@ if __name__ == '__main__':
             frame = cv2.resize(frame, (disp_w,disp_h), interpolation=cv2.INTER_AREA)
 
         # Draw bboxs
-        box_bgr = draw_bboxs(frame, data)
+        # box_bgr = draw_bboxs(frame, data)
+        box_bgr = draw_bboxs(frame, data, fcos_postprocess_info.width, fcos_postprocess_info.height, disp_w, disp_h)
 
         # cv2.imwrite("imf.jpg", box_bgr)
 

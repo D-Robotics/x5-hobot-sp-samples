@@ -194,6 +194,19 @@ def limit_display_cord(coor):
     return coor
 
 
+def scale_bbox(bbox, input_w, input_h, output_w, output_h):
+
+    scale_x = output_w / input_w
+    scale_y = output_h / input_h
+
+    x1 = int(bbox[0] * scale_x)
+    y1 = int(bbox[1] * scale_y)
+    x2 = int(bbox[2] * scale_x)
+    y2 = int(bbox[3] * scale_y)
+
+    return [x1, y1, x2, y2]
+
+
 def run(outputs):
     global image_counter
 
@@ -225,6 +238,7 @@ def run(outputs):
         id = int(result['id'])  # id
         name = result['name']  # 类别名称
 
+        bbox = scale_bbox(bbox, 512, 512, disp_w, disp_h)
         coor = limit_display_cord(bbox)
         coor = [round(i) for i in coor]
         # get bbox score

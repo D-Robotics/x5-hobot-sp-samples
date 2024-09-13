@@ -18,13 +18,13 @@ from hobot_dnn import pyeasy_dnn as dnn
 from hobot_vio import libsrcampy as srcampy
 
 import ctypes
-import json 
+import json
 
 
 output_tensors = None
 
 fcos_postprocess_info = None
-  
+
 
 class hbSysMem_t(ctypes.Structure):
     _fields_ = [
@@ -45,7 +45,7 @@ class hbDNNQuantiScale_t(ctypes.Structure):
         ("scaleData",ctypes.POINTER(ctypes.c_float)),
         ("zeroPointLen",ctypes.c_int),
         ("zeroPointData",ctypes.c_char_p)
-    ]    
+    ]
 
 class hbDNNTensorShape_t(ctypes.Structure):
     _fields_ = [
@@ -87,11 +87,11 @@ class FcosPostProcessInfo_t(ctypes.Structure):
     ]
 
 
-libpostprocess = ctypes.CDLL('/usr/lib/libpostprocess.so') 
+libpostprocess = ctypes.CDLL('/usr/lib/libpostprocess.so')
 
 get_Postprocess_result = libpostprocess.FcosPostProcess
-get_Postprocess_result.argtypes = [ctypes.POINTER(FcosPostProcessInfo_t)]  
-get_Postprocess_result.restype = ctypes.c_char_p  
+get_Postprocess_result.argtypes = [ctypes.POINTER(FcosPostProcessInfo_t)]
+get_Postprocess_result.restype = ctypes.c_char_p
 
 def get_TensorLayout(Layout):
     if Layout == "NCHW":
@@ -173,6 +173,19 @@ class ParallelExector(object):
             self._pool.join()
 
 
+def scale_bbox(bbox, input_w, input_h, output_w, output_h):
+
+    scale_x = output_w / input_w
+    scale_y = output_h / input_h
+
+    x1 = int(bbox[0] * scale_x)
+    y1 = int(bbox[1] * scale_y)
+    x2 = int(bbox[2] * scale_x)
+    y2 = int(bbox[3] * scale_y)
+
+    return [x1, y1, x2, y2]
+
+
 def limit_display_cord(coor):
     coor[0] = max(min(disp_w, coor[0]), 0)
     # min coor is set to 2 not 0, leaving room for string display
@@ -190,28 +203,29 @@ def run(outputs):
             output_tensors[i].sysMem[0].virAddr = ctypes.cast(outputs[i].ctypes.data_as(ctypes.POINTER(ctypes.c_float)), ctypes.c_void_p)
             output_tensors[i + 5].sysMem[0].virAddr = ctypes.cast(outputs[i + 5].ctypes.data_as(ctypes.POINTER(ctypes.c_float)), ctypes.c_void_p)
             output_tensors[i + 10].sysMem[0].virAddr = ctypes.cast(outputs[i + 10].ctypes.data_as(ctypes.POINTER(ctypes.c_float)), ctypes.c_void_p)
-        else:  
+        else:
             output_tensors[i].sysMem[0].virAddr = ctypes.cast(outputs[i].ctypes.data_as(ctypes.POINTER(ctypes.c_int32)), ctypes.c_void_p)
             output_tensors[i + 5].sysMem[0].virAddr = ctypes.cast(outputs[i + 5].ctypes.data_as(ctypes.POINTER(ctypes.c_int32)), ctypes.c_void_p)
             output_tensors[i + 10].sysMem[0].virAddr = ctypes.cast(outputs[i + 10].ctypes.data_as(ctypes.POINTER(ctypes.c_int32)), ctypes.c_void_p)
-        
+
         libpostprocess.FcosdoProcess(output_tensors[i], output_tensors[i + 5], output_tensors[i + 10], ctypes.pointer(fcos_postprocess_info), i)
-        
-    result_str = get_Postprocess_result(ctypes.pointer(fcos_postprocess_info))  
-    result_str = result_str.decode('utf-8')  
+
+    result_str = get_Postprocess_result(ctypes.pointer(fcos_postprocess_info))
+    result_str = result_str.decode('utf-8')
     # print(result_str)
 
     # draw result
-    # 解析JSON字符串  
-    data = json.loads(result_str[14:])  
+    # 解析JSON字符串
+    data = json.loads(result_str[14:])
 
-    # 遍历每一个结果  
-    for index, result in enumerate(data): 
-        bbox = result['bbox']  # 矩形框位置信息  
-        score = result['score']  # 得分  
-        id = int(result['id'])  # id  
-        name = result['name']  # 类别名称 
+    # 遍历每一个结果
+    for index, result in enumerate(data):
+        bbox = result['bbox']  # 矩形框位置信息
+        score = result['score']  # 得分
+        id = int(result['id'])  # id
+        name = result['name']  # 类别名称
 
+        bbox = scale_bbox(bbox, 512, 512, disp_w, disp_h)
         coor = limit_display_cord(bbox)
         coor = [round(i) for i in coor]
         # get bbox score
@@ -287,7 +301,7 @@ def get_h264_nalu_type(byte_stream):
     for idx, (start, end, is4bytes, fb, nri, type) in enumerate(nalu_pos):
         # print("NAL#%d: %d, %d, %d, %d, %d" % (idx, start, end, fb, nri, type))
         nalu_types.append(type)
-    
+
     return nalu_types
 
 def bytes_to_numpy(image_bytes):
@@ -421,7 +435,7 @@ class VideoDisplay(threading.Thread):
         self.disp.close()
         self.vps.close_cam()
         srcampy.unbind(self.vps, self.disp)
-       
+
 
     def run(self):
         global is_stop
@@ -514,14 +528,14 @@ class AiInference(threading.Thread):
             return pro.shape[1], pro.shape[2]
 def signal_handler(sig, frame):
     print("Ctrl+C received. Closing app.")
-    global is_stop 
+    global is_stop
     is_stop = True
 
 
 if __name__ == '__main__':
     # rtsp_urls = ["rtsp://username:passwd@127.0.0.1/1080P_test.h264"]
     rtsp_urls = ["rtsp://127.0.0.1/1080P_test.h264"]
-    
+
     enable_display = 1
     enable_ai_inference = 0
     signal.signal(signal.SIGINT, signal_handler)
@@ -592,26 +606,26 @@ if __name__ == '__main__':
         fcos_postprocess_info.width = w
         fcos_postprocess_info.ori_height = disp_h
         fcos_postprocess_info.ori_width = disp_w
-        fcos_postprocess_info.score_threshold = 0.5 
+        fcos_postprocess_info.score_threshold = 0.5
         fcos_postprocess_info.nms_threshold = 0.6
         fcos_postprocess_info.nms_top_k = 5
         fcos_postprocess_info.is_pad_resize = 0
 
         output_tensors = (hbDNNTensor_t * len(models[0].outputs))()
-        
+
         for i in range(len(models[0].outputs)):
             output_tensors[i].properties.tensorLayout = get_TensorLayout(models[0].outputs[i].properties.layout)
             # print(output_tensors[i].properties.tensorLayout)
             if (len(models[0].outputs[i].properties.scale_data) == 0):
                 output_tensors[i].properties.quantiType = 0
             else:
-                output_tensors[i].properties.quantiType = 2  
-                scale_data_tmp = models[0].outputs[i].properties.scale_data.reshape(1, 1, 1, models[0].outputs[i].properties.shape[3])  
+                output_tensors[i].properties.quantiType = 2
+                scale_data_tmp = models[0].outputs[i].properties.scale_data.reshape(1, 1, 1, models[0].outputs[i].properties.shape[3])
                 output_tensors[i].properties.scale.scaleData = scale_data_tmp.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-                
+
             for j in range(len(models[0].outputs[i].properties.shape)):
                 output_tensors[i].properties.validShape.dimensionSize[j] = models[0].outputs[i].properties.shape[j]
                 output_tensors[i].properties.alignedShape.dimensionSize[j] = models[0].outputs[i].properties.shape[j]
-    
+
         ai_inference = AiInference(video_display, models)
         ai_inference.start()

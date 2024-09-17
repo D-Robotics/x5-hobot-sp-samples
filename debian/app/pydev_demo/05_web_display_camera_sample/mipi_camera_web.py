@@ -165,8 +165,11 @@ def limit_display_cord(coor):
     coor[3] = max(min(1080, coor[3]), 0)
     return coor
 
-def serialize(FrameMessage, data):
-
+# def serialize(FrameMessage, data):
+def serialize(FrameMessage, data, ori_w, ori_h, target_w, target_h):
+    # Scaling factors from original to target resolution
+    scale_x = target_w / ori_w
+    scale_y = target_h / ori_h
     if data:
         for result in data:
             # get class name
@@ -177,7 +180,14 @@ def serialize(FrameMessage, data):
             name = result['name']  # 类别名称
 
             # print(f"bbox: {bbox}, score: {score}, id: {id}, name: {name}")
-            bbox = limit_display_cord(bbox)
+            coor = [round(i) for i in bbox]
+            # Rescale the bbox coordinates
+            coor[0] = int(coor[0] * scale_x)
+            coor[1] = int(coor[1] * scale_y)
+            coor[2] = int(coor[2] * scale_x)
+            coor[3] = int(coor[3] * scale_y)
+
+            bbox = limit_display_cord(coor)
             Target.type_ = classes[id]
             Box = x3_pb2.Box()
             Box.type_ = classes[id]
@@ -197,9 +207,9 @@ def serialize(FrameMessage, data):
 models = pyeasy_dnn.load('../models/fcos_512x512_nv12.bin')
 input_shape = (512, 512)
 cam = srcampy.Camera()
-cam.open_cam(0, -1, fps, [512,1920], [512,1080])
+cam.open_cam(0, -1, fps, [512,1920], [512,1088])
 enc = srcampy.Encoder()
-enc.encode(0, 3, 1920, 1080)
+enc.encode(0, 3, 1920, 1088)
 classes = get_classes()
 # 打印输入 tensor 的属性
 print_properties(models[0].inputs[0].properties)
@@ -274,12 +284,13 @@ async def web_service(websocket, path):
         # 解析JSON字符串
         data = json.loads(result_str[14:])
 
-        origin_image = cam.get_img(2, 1920, 1080)
+        origin_image = cam.get_img(2, 1920, 1088)
         enc.encode_file(origin_image)
         FrameMessage.img_.buf_ = enc.get_img()
         FrameMessage.smart_msg_.timestamp_ = int(time.time())
 
-        prot_buf = serialize(FrameMessage, data)
+        # prot_buf = serialize(FrameMessage, data)
+        prot_buf = serialize(FrameMessage , data , fcos_postprocess_info.width , fcos_postprocess_info.height , FrameMessage.img_.width_ , FrameMessage.img_.height_)
 
         await websocket.send(prot_buf)
 

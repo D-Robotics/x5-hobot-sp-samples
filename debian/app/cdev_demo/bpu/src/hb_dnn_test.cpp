@@ -616,6 +616,11 @@ void yolov5_do_post(void *display)
             auto output = work.payload;
             auto stime = work.start_time;
 
+            if (work.payload == nullptr) {
+                printf("work.payload is null!\n");
+                continue;
+            }
+
             for (size_t j = 0; j < 3; j++)
             {
                 {

@@ -140,7 +140,29 @@ void open_rtsp(const char *rtsp_url, const char *transfer_type)
     void *display = sp_init_display_module();
     void *vps = sp_init_vio_module();
     // get display resolution
-    sp_get_display_resolution(&disp_w, &disp_h);
+    int disp_w_list[20] = {0};
+    int disp_h_list[20] = {0};
+    sp_get_display_resolution(disp_w_list, disp_h_list);
+    //指定分辨率时，选择最匹配的display分辨率，不指定分辨率时，选择最小分辨率
+    for (int i = 0; i < 20; i++) {
+        if(disp_w_list[i] == 0)
+            break;
+
+        if(pVideoCodecCtx->width != -1 && pVideoCodecCtx->height != -1)
+        {
+            if(pVideoCodecCtx->width >= disp_w_list[i] && pVideoCodecCtx->height >= disp_h_list[i])
+            {
+                disp_w = disp_w_list[i];
+                disp_h = disp_h_list[i];
+                break;
+            }
+        }
+        else
+        {
+            disp_w = disp_w_list[i];
+            disp_h = disp_h_list[i];
+        }
+    }
     printf("rtsp_w:%d,rtsp_h:%d\ndisplay_w:%d,dispaly_h:%d\n", pVideoCodecCtx->width, pVideoCodecCtx->height, disp_w, disp_h);
     // decode setting
     // Setting the stream_file to null means that the decoded source is manually called sp_decoder_set_image func

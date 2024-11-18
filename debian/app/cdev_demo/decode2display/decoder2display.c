@@ -71,7 +71,29 @@ int main(int argc, char **argv)
     void *vio_object;
     // 获取显示器支持的分辨率
     int disp_w = 0, disp_h = 0;
-    sp_get_display_resolution(&disp_w, &disp_h);
+    int disp_w_list[20] = {0};
+    int disp_h_list[20] = {0};
+    sp_get_display_resolution(disp_w_list, disp_h_list);
+    //指定分辨率时，选择最匹配的display分辨率，不指定分辨率时，选择最小分辨率
+    for (int i = 0; i < 20; i++) {
+        if(disp_w_list[i] == 0)
+            break;
+
+        if(args.width != -1 && args.height != -1)
+        {
+            if(args.width >= disp_w_list[i] && args.height >= disp_h_list[i])
+            {
+                disp_w = disp_w_list[i];
+                disp_h = disp_h_list[i];
+                break;
+            }
+        }
+        else
+        {
+            disp_w = disp_w_list[i];
+            disp_h = disp_h_list[i];
+        }
+    }
     int widths[] = {disp_w};
     int heights[] = {disp_h};
     printf("disp_w=%d, disp_h=%d\n", disp_w, disp_h);

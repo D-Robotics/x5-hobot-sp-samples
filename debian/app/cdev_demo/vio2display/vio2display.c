@@ -70,7 +70,7 @@ int main(int argc, char **argv)
         if(disp_w_list[i] == 0)
             break;
 
-        if(args.width != -1 && args.height != -1)
+        if(args.width > 0 && args.height > 0)
         {
             if(args.width >= disp_w_list[i] && args.height >= disp_h_list[i])
             {

@@ -148,7 +148,7 @@ void open_rtsp(const char *rtsp_url, const char *transfer_type)
         if(disp_w_list[i] == 0)
             break;
 
-        if(pVideoCodecCtx->width != -1 && pVideoCodecCtx->height != -1)
+        if(pVideoCodecCtx->width > 0 && pVideoCodecCtx->height > 0)
         {
             if(pVideoCodecCtx->width >= disp_w_list[i] && pVideoCodecCtx->height >= disp_h_list[i])
             {

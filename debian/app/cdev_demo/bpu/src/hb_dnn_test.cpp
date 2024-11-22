@@ -144,7 +144,35 @@ int main(int argc, char *argv[])
     video_w = args.width;
     video_h = args.height;
     debug = args.debug;
-    sp_get_display_resolution(&disp_w, &disp_h);//get display resolution
+    //不指定分辨率时，选择1080P
+    if(video_w == 0 && video_h == 0)
+    {
+        video_w = 1920;
+        video_h = 1080;
+    }
+    int disp_w_list[20] = {0};
+    int disp_h_list[20] = {0};
+    sp_get_display_resolution(disp_w_list, disp_h_list);
+    //指定分辨率时，选择最匹配的display分辨率，不指定分辨率时，选择最小分辨率
+    for (int i = 0; i < 20; i++) {
+        if(disp_w_list[i] == 0)
+            break;
+
+        if(video_w > 0 && video_h > 0)
+        {
+            if(video_w >= disp_w_list[i] && video_h >= disp_h_list[i])
+            {
+                disp_w = disp_w_list[i];
+                disp_h = disp_h_list[i];
+                break;
+            }
+        }
+        else
+        {
+            disp_w = disp_w_list[i];
+            disp_h = disp_h_list[i];
+        }
+    }
     if (post_mode == 0)//yolov5 pipeline
     {
         std::shared_ptr<char> buffer_672p(new char[FRAME_BUFFER_SIZE(672, 672)]);//create buffer for saving resized frame
@@ -155,7 +183,12 @@ int main(int argc, char *argv[])
 
         auto camera = sp_init_vio_module();
         auto display = sp_init_display_module();
-        int ret = sp_open_camera(camera, 0, -1, 2, &(width[0]), &(height[0]));//open camera
+        sp_sensors_parameters parms;
+        parms.fps = -1;
+        parms.raw_height = video_h;
+        parms.raw_width = video_w;
+        int ret = sp_open_camera_v2(camera, 0, -1, 2, &parms, width, height);
+        //int ret = sp_open_camera(camera, 0, -1, 2, &(width[0]), &(height[0]));//open camera
         sleep(1);//for isp to stabilize
         ret = sp_start_display(display, 1, disp_w, disp_h);//display on 1 chn,this will not destroy the desktop chn
         sp_module_bind(camera, SP_MTYPE_VIO, display, SP_MTYPE_DISPLAY);//bind first

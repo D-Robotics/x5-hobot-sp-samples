@@ -105,6 +105,61 @@ def print_properties(pro):
     print("shape:", pro.shape)
 
 
+# 对宽度进行16字节对齐
+def align_16(value):
+    return (value + 15) // 16 * 16
+
+# 分配对齐后的内存，并填充图像数据
+def bgr_to_nv12_custom_with_padding(bgr_image, aligned_width, aligned_height):
+    height, width = bgr_image.shape[:2]
+
+    # 分离 YUV 分量
+    yuv_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2YUV_I420)
+
+    # 创建对齐后的 Y 平面和 UV 平面
+    y_plane = np.zeros((aligned_height, aligned_width), dtype=np.uint8)
+    uv_plane = np.zeros((aligned_height // 2, aligned_width), dtype=np.uint8)
+
+    # 提取 Y、U、V 分量
+    y_orig = yuv_image[:height, :]
+    u_orig = yuv_image[height:height + height // 4].reshape(height // 2, width // 2)
+    v_orig = yuv_image[height + height // 4:].reshape(height // 2, width // 2)
+
+    # 填充 Y 分量到对齐后的 Y 平面
+    for i in range(height):
+        y_plane[i, :width] = y_orig[i, :]
+
+    # 填充 UV 分量到对齐后的 UV 平面 (交错 U 和 V)
+    for i in range(height // 2):
+        uv_plane[i, 0:width:2] = u_orig[i, :]  # 奇数列填充 U
+        uv_plane[i, 1:width:2] = v_orig[i, :]  # 偶数列填充 V
+
+    # 返回对齐后的 Y 和 UV 数据
+    return y_plane, uv_plane
+
+# 将 Y 和 UV 数据合并为 NV12 格式
+def combine_yuv_to_nv12(y_data, uv_data):
+    return np.concatenate((y_data.flatten(), uv_data.flatten()))
+
+# 图像处理函数，传入模型的高、宽，ssd_mobilenetv1_300x300_nv12.bin使用的分辨率是 300x300
+def process_image(img_file, models_h , models_w):
+
+    # 使用固定的高和宽
+    h, w = (models_h, models_w)
+    des_dim = (w, h)
+
+    # 调整图像大小到目标分辨率
+    resized_data = cv2.resize(img_file, des_dim, interpolation=cv2.INTER_AREA)
+
+    # 对齐后的宽高
+    aligned_width = align_16(w)
+    aligned_height = h
+
+    # 使用对齐后的宽高进行 NV12 转换并填充
+    y_data, uv_data = bgr_to_nv12_custom_with_padding(resized_data, aligned_width, aligned_height)
+
+    return combine_yuv_to_nv12(y_data, uv_data)
+
 def get_hw(pro):
     if pro.layout == "NCHW":
         return pro.shape[2], pro.shape[3]
@@ -128,8 +183,9 @@ if __name__ == '__main__':
     img_file = cv2.imread('./zebra_cls.jpg')
     h, w = get_hw(models[0].inputs[0].properties)
     des_dim = (w, h)
-    resized_data = cv2.resize(img_file, des_dim, interpolation=cv2.INTER_AREA)
-    nv12_data = bgr2nv12_opencv(resized_data)
+    # resized_data = cv2.resize(img_file, des_dim, interpolation=cv2.INTER_AREA)
+    # nv12_data = bgr2nv12_opencv(resized_data)
+    nv12_data = process_image(img_file, h, w)
 
     outputs = models[0].forward(nv12_data)
 
@@ -159,8 +215,10 @@ if __name__ == '__main__':
             output_tensors[i].sysMem[0].virAddr = ctypes.cast(outputs[i].buffer.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)), ctypes.c_void_p)
 
         for j in range(len(outputs[i].properties.shape)):
-            output_tensors[i].properties.validShape.numDimensions = len(outputs[i].properties.shape)
-            output_tensors[i].properties.validShape.dimensionSize[j] = outputs[i].properties.shape[j]
+            # output_tensors[i].properties.validShape.numDimensions = len(outputs[i].properties.shape)
+            # output_tensors[i].properties.validShape.dimensionSize[j] = outputs[i].properties.shape[j]
+            output_tensors[i].properties.validShape = ctypes.cast(outputs[i].properties.validShape, ctypes.POINTER(hbDNNTensorShape_t)).contents
+            output_tensors[i].properties.alignedShape = ctypes.cast(outputs[i].properties.alignedShape, ctypes.POINTER(hbDNNTensorShape_t)).contents
 
         libpostprocess.ClassificationDoProcess(output_tensors[i], ctypes.pointer(classification_postprocess_info), i)
 

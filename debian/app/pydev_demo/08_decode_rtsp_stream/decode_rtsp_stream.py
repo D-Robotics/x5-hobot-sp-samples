@@ -415,6 +415,18 @@ class VideoDisplay(threading.Thread):
         # Get HDMI display object
         self.disp = srcampy.Display()
         # For the meaning of parameters, please refer to the relevant documents of HDMI display
+        resolution_list = disp.get_display_res()
+        if (disp_w, disp_h) in resolution_list:
+            print(f"Resolution {disp_w}x{disp_h} exists in the list.")
+        else:
+            print(f"Resolution {disp_w}x{disp_h} does not exist in the list.")
+            for res in resolution_list:
+                # Exclude 0 resolution first.
+                if res[0] == 0 | res[1] == 0:
+                    break
+                # If the disp_w、disp_h is not set or not in the list, default to iterating to the smallest resolution for use.
+                disp_w = res[0]
+                disp_h = res[1]
         self.disp.display(0, disp_w, disp_h)
 
         # change disp for bbox display

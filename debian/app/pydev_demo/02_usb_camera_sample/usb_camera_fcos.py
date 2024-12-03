@@ -274,7 +274,15 @@ if __name__ == '__main__':
     # Get HDMI display object
     disp = srcampy.Display()
     # For the meaning of parameters, please refer to the relevant documents of HDMI display
-    disp_w, disp_h = get_display_res()
+    # disp_w, disp_h = get_display_res()
+    resolution_list = disp.get_display_res()
+    for res in resolution_list:
+        # First, exclude 0 resolution and other invalid resolutions.
+        if res[0] == 0 | res[1] == 0:
+            break
+        # If disp is set, it defaults to iterating to the smallest resolution for use.
+        disp_w = res[0]
+        disp_h = res[1]
     disp.display(0, disp_w, disp_h)
 
     # 获取结构体信息

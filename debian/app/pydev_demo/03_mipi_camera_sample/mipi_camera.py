@@ -16,6 +16,10 @@ from hobot_vio import libsrcampy as srcampy
 from hobot_dnn import pyeasy_dnn as dnn
 import threading
 
+# sensor 
+sensor_width = 1920
+sensor_height = 1080
+
 image_counter = None
 is_stop=False
 output_tensors = None
@@ -110,16 +114,25 @@ def signal_handler(signal, frame):
 
 
 def get_display_res():
-    if os.path.exists("/usr/bin/get_hdmi_res") == False:
-        return 1920, 1080
+    disp = srcampy.Display()
+    resolution_list = disp.get_display_res()
+    if (sensor_width, sensor_height) in resolution_list:
+        print(f"Resolution {sensor_width}x{sensor_height} exists in the list.")
+        return int(sensor_width), int(sensor_height)
+    else:
+        print(f"Resolution {sensor_width}x{sensor_height} does not exist in the list.")
+        for res in resolution_list:
+            # Exclude 0 resolution first.
+            if res[0] == 0 and res[1] == 0:
+                break
+            # If the disp_w、disp_h is not set or not in the list, default to iterating to the smallest resolution for use.
+            if res[0] <= sensor_width and res[1] <= sensor_height:
+                print(f"Resolution {res[0]}x{res[1]}.")
+                return int(res[0]), int(res[1])
 
-    import subprocess
-    p = subprocess.Popen(["/usr/bin/get_hdmi_res"], stdout=subprocess.PIPE)
-    result = p.communicate()
-    res = result[0].split(b',')
-    res[1] = max(min(int(res[1]), 1920), 0)
-    res[0] = max(min(int(res[0]), 1080), 0)
-    return int(res[1]), int(res[0])
+    disp.close()
+    # default 1980, 1080
+    return 1980, 1080
 
 disp_w, disp_h = get_display_res()
 
@@ -316,7 +329,6 @@ if __name__ == '__main__':
             output_tensors[i].properties.validShape.dimensionSize[j] = models[0].outputs[i].properties.shape[j]
             output_tensors[i].properties.alignedShape.dimensionSize[j] = models[0].outputs[i].properties.shape[j]
 
-
     # Camera API, get camera object
     cam = srcampy.Camera()
 
@@ -325,23 +337,11 @@ if __name__ == '__main__':
     input_shape = (h, w)
     # Open f37 camera
     # For the meaning of parameters, please refer to the relevant documents of camera
-    cam.open_cam(0, -1, -1, [w, disp_w], [h, disp_h])
+    cam.open_cam(0, -1, -1, [w, disp_w], [h, disp_h],sensor_height,sensor_width)
 
     # Get HDMI display object
     disp = srcampy.Display()
     # For the meaning of parameters, please refer to the relevant documents of HDMI display
-    resolution_list = disp.get_display_res()
-    if (disp_w, disp_h) in resolution_list:
-        print(f"Resolution {disp_w}x{disp_h} exists in the list.")
-    else:
-        print(f"Resolution {disp_w}x{disp_h} does not exist in the list.")
-        for res in resolution_list:
-            # Exclude 0 resolution first.
-            if res[0] == 0 | res[1] == 0:
-                break
-            # If the disp_w、disp_h is not set or not in the list, default to iterating to the smallest resolution for use.
-            disp_w = res[0]
-            disp_h = res[1]
     disp.display(0, disp_w, disp_h)
 
     # bind camera directly to display

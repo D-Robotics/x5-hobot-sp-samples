@@ -130,6 +130,8 @@ def signal_handler(signal, frame):
 
 
 def get_display_res():
+    disp_w_small=1920
+    disp_h_small=1080
     disp = srcampy.Display()
     resolution_list = disp.get_display_res()
     if (sensor_width, sensor_height) in resolution_list:
@@ -141,14 +143,17 @@ def get_display_res():
             # Exclude 0 resolution first.
             if res[0] == 0 and res[1] == 0:
                 break
+            else:
+                disp_w_small=res[0]
+                disp_h_small=res[1]
+
             # If the disp_w、disp_h is not set or not in the list, default to iterating to the smallest resolution for use.
             if res[0] <= sensor_width and res[1] <= sensor_height:
                 print(f"Resolution {res[0]}x{res[1]}.")
                 return int(res[0]), int(res[1])
 
     disp.close()
-    # default 1980, 1080
-    return 1980, 1080
+    return disp_w_small, disp_h_small
 
 disp_w, disp_h = get_display_res()
 

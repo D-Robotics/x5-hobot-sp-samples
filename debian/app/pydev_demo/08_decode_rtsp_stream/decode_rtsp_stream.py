@@ -428,10 +428,11 @@ class VideoDisplay(threading.Thread):
         self.vps_group = vps_group
         self.frame_queue = Queue(maxsize=2)
         self.is_running = True
+        global disp_w, disp_h
         # Get HDMI display object
         self.disp = srcampy.Display()
         # For the meaning of parameters, please refer to the relevant documents of HDMI display
-        resolution_list = disp.get_display_res()
+        resolution_list = self.disp.get_display_res()
         if (disp_w, disp_h) in resolution_list:
             print(f"Resolution {disp_w}x{disp_h} exists in the list.")
         else:

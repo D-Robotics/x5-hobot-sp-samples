@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
 
+################################################################################
+# Copyright (c) 2024,D-Robotics.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
 import sys
 import signal
 import os
@@ -274,7 +290,15 @@ if __name__ == '__main__':
     # Get HDMI display object
     disp = srcampy.Display()
     # For the meaning of parameters, please refer to the relevant documents of HDMI display
-    disp_w, disp_h = get_display_res()
+    # disp_w, disp_h = get_display_res()
+    resolution_list = disp.get_display_res()
+    for res in resolution_list:
+        # First, exclude 0 resolution and other invalid resolutions.
+        if res[0] == 0 | res[1] == 0:
+            break
+        # If disp is set, it defaults to iterating to the smallest resolution for use.
+        disp_w = res[0]
+        disp_h = res[1]
     disp.display(0, disp_w, disp_h)
 
     # 获取结构体信息

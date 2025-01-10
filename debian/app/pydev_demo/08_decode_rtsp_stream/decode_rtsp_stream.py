@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
 
+################################################################################
+# Copyright (c) 2024,D-Robotics.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
 import sys
 import os
 import signal
@@ -412,9 +428,22 @@ class VideoDisplay(threading.Thread):
         self.vps_group = vps_group
         self.frame_queue = Queue(maxsize=2)
         self.is_running = True
+        global disp_w, disp_h
         # Get HDMI display object
         self.disp = srcampy.Display()
         # For the meaning of parameters, please refer to the relevant documents of HDMI display
+        resolution_list = self.disp.get_display_res()
+        if (disp_w, disp_h) in resolution_list:
+            print(f"Resolution {disp_w}x{disp_h} exists in the list.")
+        else:
+            print(f"Resolution {disp_w}x{disp_h} does not exist in the list.")
+            for res in resolution_list:
+                # Exclude 0 resolution first.
+                if res[0] == 0 | res[1] == 0:
+                    break
+                # If the disp_w、disp_h is not set or not in the list, default to iterating to the smallest resolution for use.
+                disp_w = res[0]
+                disp_h = res[1]
         self.disp.display(0, disp_w, disp_h)
 
         # change disp for bbox display

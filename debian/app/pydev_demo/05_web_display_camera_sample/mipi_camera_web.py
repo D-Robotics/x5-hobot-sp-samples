@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+
+################################################################################
+# Copyright (c) 2024,D-Robotics.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
 import sys, os
 import signal
 import numpy as np
@@ -207,7 +224,7 @@ def serialize(FrameMessage, data, ori_w, ori_h, target_w, target_h):
 models = pyeasy_dnn.load('../models/fcos_512x512_nv12.bin')
 input_shape = (512, 512)
 cam = srcampy.Camera()
-cam.open_cam(0, -1, fps, [512,1920], [512,1088])
+cam.open_cam(0, -1, fps, [512,1920], [512,1088],1080,1920)
 enc = srcampy.Encoder()
 enc.encode(0, 3, 1920, 1088)
 classes = get_classes()
@@ -246,7 +263,7 @@ for i in range(len(models[0].outputs)):
         output_tensors[i].properties.alignedShape.dimensionSize[j] = models[0].outputs[i].properties.shape[j]
 
 
-async def web_service(websocket, path):
+async def web_service(websocket, path=None):
     while True:
         FrameMessage = x3_pb2.FrameMessage()
         FrameMessage.img_.height_ = 1080
@@ -297,8 +314,13 @@ async def web_service(websocket, path):
     cam.close_cam()
 
 
-if __name__ == '__main__':
+async def main():
+    # 创建 WebSocket 服务器
+    async with websockets.serve(web_service, "0.0.0.0", 8080):
+        # 阻塞事件循环
+        await asyncio.Future()  # 保持运行
+
+if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
-    start_server = websockets.serve(web_service, "0.0.0.0", 8080)
-    asyncio.get_event_loop().run_until_complete(start_server)
-    asyncio.get_event_loop().run_forever()
+    asyncio.run(main())
+

@@ -326,6 +326,53 @@ def bytes_to_numpy(image_bytes):
     print(type(image_np),image_np.shape)
     return image_np
 
+
+# 判断解码流的类型，以便填写 self.dec.decode 中的 dec_type。一共两种办法，
+# 一种是使用OpenCV的CAP_PROP_FOURCC属性获取视频流的FourCC编码
+# 一种通过解析NAL单元检测编码类型
+
+def fourcc_int_to_string(fourcc):
+    """将FourCC整数转换为字符串"""
+    try:
+        return bytes([
+            fourcc & 0xFF,
+            (fourcc >> 8) & 0xFF,
+            (fourcc >> 16) & 0xFF,
+            (fourcc >> 24) & 0xFF
+        ]).decode('ascii').lower()
+    except UnicodeDecodeError:
+        return 'unknown'
+
+# mjpg 是一帧一帧的图像，没办法使用 NAL 单元去判断，所以该方法没有判断 mjpg。
+def detect_codec_via_nal_units(byte_stream):
+    """通过解析NAL单元检测编码类型"""
+    start_code_prefix_short = b"\x00\x00\x01"
+    start_code_prefix_long = b"\x00\x00\x00\x01"
+    pos = 0
+    while pos < len(byte_stream):
+        short_pos = byte_stream.find(start_code_prefix_short, pos)
+        long_pos = byte_stream.find(start_code_prefix_long, pos)
+        if short_pos == -1 and long_pos == -1:
+            break
+        if long_pos != -1 and (short_pos == -1 or long_pos < short_pos):
+            start = long_pos
+            nalu_start = start + 4
+        else:
+            start = short_pos
+            nalu_start = start + 3
+        if nalu_start >= len(byte_stream):
+            break
+        first_byte = byte_stream[nalu_start]
+        nal_type_h265 = (first_byte >> 1) & 0x3F
+        if 32 <= nal_type_h265 <= 34:  # H.265的VPS/SPS/PPS
+            return 'h265'
+        nal_type_h264 = first_byte & 0x1F
+        if nal_type_h264 in [7, 8]:    # H.264的SPS/PPS
+            return 'h264'
+        pos = nalu_start + 1
+    return 'h264'  # 默认假设为H.264
+
+
 class DecodeRtspStream(threading.Thread):
     def __init__(self, rtsp_url):
         threading.Thread.__init__(self)
@@ -341,11 +388,46 @@ class DecodeRtspStream(threading.Thread):
         if not cap.isOpened():
             print("fail to open rtsp: {}".format(self.rtsp_url))
             return -1
+        self.cap = cap
+
+        # 开始判断编码类型
+        fourcc_int = int(self.cap.get(cv2.CAP_PROP_FOURCC))
+        fourcc_str = fourcc_int_to_string(fourcc_int)
+        if fourcc_str in ['h264', 'hevc', 'h265', 'mjpg']:
+            if fourcc_str == 'h264':
+                dec_type = 1
+            elif fourcc_str in ['hevc', 'h265']:
+                dec_type = 2
+            elif fourcc_str == 'mjpg':
+                dec_type = 3
+            print(f"Encoding detected via FourCC: {fourcc_str}, dec_type: {dec_type}")
+        else:
+            # 手动解析NAL单元
+            ret, stream_frame = self.cap.read()
+            if not ret:
+                print("Failed to read frame, unable to detect encoding.")
+                return -1
+            codec_type = detect_codec_via_nal_units(stream_frame.tobytes())
+            if codec_type == 'h264':
+                dec_type = 1
+            elif codec_type == 'h265':
+                dec_type = 2
+            else:
+                print("Unsupported encoding type.")
+                return -1
+            print(f"Encoding detected via NAL unit: {codec_type}, dec_type: {dec_type}")
+            # 重置VideoCapture
+            self.cap.release()
+            self.cap = cv2.VideoCapture(self.rtsp_url)
+            self.cap.set(cv2.CAP_PROP_FORMAT, -1)
+            if not self.cap.isOpened():
+                print("Failed to reopen RTSP stream.")
+                return -1
+        # 判断编码类型结束
 
         print("RTSP stream frame_width:{:.0f}, frame_height:{:.0f}"
                     .format(cap.get(cv2.CAP_PROP_FRAME_WIDTH),
                             cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-        self.cap = cap
         self.width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -594,7 +676,7 @@ if __name__ == '__main__':
     rtsp_streams = []
     for rtsp_url in rtsp_urls:
         rtsp_stream = DecodeRtspStream(rtsp_url) # 初始化一个实例，并且设置这一路流会显示到输出显示屏上
-        ret = rtsp_stream.open(vdec_chan, 1) # 打开rtsp流，并初始化解码器通道0，编码格式为H264
+        ret = rtsp_stream.open(vdec_chan) # 打开rtsp流，编码格式默认是 1，open函数中有对码流类型的判断。如果使用的是 mjpg，可以使用 rtsp_stream.open(vdec_chan, 3)
         if ret != 0:
             quit(ret)
         rtsp_stream.start()

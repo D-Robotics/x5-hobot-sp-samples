@@ -684,14 +684,15 @@ void yolov5_do_post(void *display)
                 printf("%s fps:%lf,processing time :%ld\n", __func__, fps, delta_time);
             }
             yolov5_work_deque.pop_front();
-            sp_display_draw_rect(display, 0, 0, 0, 0, 3, 1, 0x00000000, 2);//flush display
+            sp_display_draw_rect(display, 0, 0, 0, 0, 3, 1, 0x00000000, 4);//flush display
             for (size_t i = 0; i < results.size(); i++)
             {
                 sp_display_draw_rect(display, results[i]->xmin, results[i]->ymin,
-                                     results[i]->xmax, results[i]->ymax, 3, 0, 0xFFFF0000, 2);//draw rectangle
+                                     results[i]->xmax, results[i]->ymax, 3, 0, 0xFFFF0000, 4);//draw rectangle
                 sp_display_draw_string(display, results[i]->xmin, results[i]->ymin,
-                                     const_cast<char*>(results[i]->class_name.c_str()), 3, 0, 0xFFFF0000, 2); //draw string
+                                     const_cast<char*>(results[i]->class_name.c_str()), 3, 0, 0xFFFF0000, 4); //draw string
             }
+            usleep(100*1000);
         }
 
     } while (!yolo_finish);

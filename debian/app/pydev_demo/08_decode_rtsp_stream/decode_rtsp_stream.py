@@ -379,6 +379,7 @@ class DecodeRtspStream(threading.Thread):
         self.rtsp_url = rtsp_url
         self.is_running = True
         self.frame_queue = Queue(maxsize=2)
+        self.stabilization_complete = False
 
     def open(self, dec_chn=0, dec_type=1):
         self.dec_chn = dec_chn
@@ -450,9 +451,15 @@ class DecodeRtspStream(threading.Thread):
         image_count = 0
         skip_count = 0
         find_pps_sps = 0
+        stabilization_count = 80  # 设置稳定帧数（只需在初始阶段执行一次）
+        self.stabilization_complete = False  # 添加完成标志
+
         while not is_stop:
             ret, stream_frame = self.cap.read()
+            # print(f"image_count = {image_count}")
             if not ret:
+                # 连接断开处理 - 重置所有状态
+                # print("restart!!!!")
                 self.dec.close()
                 self.cap.release()
                 ret = self.open(self.dec_chn, self.dec_type)
@@ -461,7 +468,10 @@ class DecodeRtspStream(threading.Thread):
                 start_time = time()
                 image_count = 0
                 skip_count = 0
+                find_pps_sps = 0
                 continue
+
+            # 获取NAL单元类型
             nalu_types = get_h264_nalu_type(stream_frame.tobytes())
             # print("ret:{}, len{}, type{}, nalu_types{}".format(ret, stream_frame.shape, type(stream_frame), nalu_types))
 
@@ -472,34 +482,53 @@ class DecodeRtspStream(threading.Thread):
             # if (nalu_types[0] in [6, 7, 8]):
             #     print("ret:{}, len{}, type{}, nalu_types{}".format(ret, stream_frame.shape, type(stream_frame), nalu_types))
 
-            find_pps_sps = 1
+            # 只设置一次标志
+            if find_pps_sps == 0:
+                find_pps_sps = 1
+                print("Found keyframe parameters, starting stabilization period")
+
             if stream_frame is not None:
                 ret = self.dec.set_img(stream_frame.tobytes(), self.dec_chn) # 发送码流, 先解码数帧图像后再获取
                 if ret != 0:
                     return ret
+
+                # 跳过前8帧（原有逻辑）
                 if skip_count < 8:
                     skip_count += 1
-                    image_count = 0
                     continue
 
                 frame = self.dec.get_img() # 获取nv12格式的yuv帧数据
 
                 if frame is not None:
-                    # print("self.frame_queue.full(): qsize: ", self.frame_queue.full(), self.frame_queue.qsize())
-                    if self.frame_queue.full() == False:
-                        self.frame_queue.put(frame)
+                    # 稳定期处理
+                    if not self.stabilization_complete:
+                        if stabilization_count > 0:
+                            stabilization_count -= 1
+                            if stabilization_count % 10 == 0:  # 每10帧报告一次
+                                print(f"Stabilization in progress: {stabilization_count} frames remaining")
+                        else:
+                            self.stabilization_complete = True
+                            print("Stabilization complete, starting normal processing")
 
-            finish_time = time()
-            image_count += 1
-            if finish_time - start_time > 3:
-                # print(start_time, finish_time, image_count)
-                print("Decode CHAN: {:d} FPS: {:.2f}".format(self.dec_chn, image_count / (finish_time - start_time)))
-                start_time = finish_time
-                image_count = 0
+                    # 稳定期结束后，将帧放入队列
+                    if self.stabilization_complete:
+                        if not self.frame_queue.full():
+                            self.frame_queue.put(frame)
+
+            # FPS计算（仅在稳定期结束后）
+            if self.stabilization_complete:
+                image_count += 1
+                current_time = time()
+                elapsed = current_time - start_time
+                if elapsed >= 3.0:
+                    fps = image_count / elapsed
+                    print(f"Decode CHAN: {self.dec_chn} FPS: {fps:.2f}")
+                    start_time = current_time
+                    image_count = 0
 
     def get_frame(self):
-        # print("self.frame_queue.empty(): qsize: ", self.frame_queue.empty(), self.frame_queue.qsize())
-        if self.frame_queue.empty() == True:
+        # print("self.frame_queue.empty(): qsize: ", self.frame_queue.empty(), self.frame_queue.qsize() , self.stabilization_complete)
+        if (self.frame_queue.empty() == True) and (not self.stabilization_complete):
             return None
         return self.frame_queue.get()
 
@@ -676,7 +705,7 @@ if __name__ == '__main__':
     rtsp_streams = []
     for rtsp_url in rtsp_urls:
         rtsp_stream = DecodeRtspStream(rtsp_url) # 初始化一个实例，并且设置这一路流会显示到输出显示屏上
-        ret = rtsp_stream.open(vdec_chan) # 打开rtsp流，编码格式默认是 1，open函数中有对码流类型的判断。如果使用的是 mjpg，可以使用 rtsp_stream.open(vdec_chan, 3)
+        ret = rtsp_stream.open(vdec_chan, 1) # 打开rtsp流，并初始化解码器通道0，编码格式为H264
         if ret != 0:
             quit(ret)
         rtsp_stream.start()

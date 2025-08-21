@@ -518,12 +518,13 @@ void fcos_feed_bpu(void *vps, bpu_module *bpu_handle)
     ret = sp_module_bind(decoder, SP_MTYPE_DECODER, vps, SP_MTYPE_VIO);//bind decode to vps,this binding is for scale
     printf("module bind decoder & vps ret = %d\n", ret);
     //using 5 group tensors as ring buffer.
-    hbDNNTensor output_tensors[5][15];//The number of tensors in each group can be known by calling sp_init_bpu_tensors
+    // output_tensors use Heap Memory
+    std::vector<std::vector<hbDNNTensor>> output_tensors(5, std::vector<hbDNNTensor>(15));
     //fcos has 15 output tensor
     int cur_ouput_buf_idx = 0;
     for (int i = 0; i < 5; i++)
     {
-        ret = sp_init_bpu_tensors(bpu_handle, output_tensors[i]);//init tensor.
+        ret = sp_init_bpu_tensors(bpu_handle, output_tensors[i].data());//init tensor.
         if (ret)
         {
             printf("prepare model output tensor failed\n");
@@ -550,24 +551,33 @@ void fcos_feed_bpu(void *vps, bpu_module *bpu_handle)
             }
             continue;
         }
-        bpu_handle->output_tensor = &output_tensors[cur_ouput_buf_idx][0];//get an tensor buffer from ring buffer
+
+        bpu_handle->output_tensor = output_tensors[cur_ouput_buf_idx].data();//get an tensor buffer from ring buffer
         fcos_work.start_time = std::chrono::high_resolution_clock::now();//get timestamp
         sp_bpu_start_predict(bpu_handle, buffer_512p.get());//start bpu predict
+
         fcos_work.payload = bpu_handle->output_tensor;//bpu processed tensor
-        fcos_work_deque.push_back(fcos_work);//push back work struct to deque
+
+        {
+            std::lock_guard<std::mutex> lk(fcos_mtx);
+            fcos_work_deque.push_back(fcos_work);//push back work struct to deque
+        }
+
         cur_ouput_buf_idx++;
         cur_ouput_buf_idx %= 5;
     }
     fcos_finish = true;
     for (size_t i = 0; i < 5; i++)
     {
-        sp_deinit_bpu_tensor(output_tensors[i], 15);//release tensor buffer
+        sp_deinit_bpu_tensor(output_tensors[i].data(), 15);//release tensor buffer
     }
+
     sp_module_unbind(decoder, SP_MTYPE_DECODER, vps, SP_MTYPE_VIO);
     sp_stop_decode(decoder);
     sp_release_decoder_module(decoder);
     sp_release_bpu_module(bpu_handle);
 }
+
 void fcos_do_post(void *display)
 {
     bpu_image_info_t image_info;//using for mapping the tensor result coordinates back to the original image
@@ -575,31 +585,49 @@ void fcos_do_post(void *display)
     image_info.m_model_w = 512;//input tensor size
     image_info.m_ori_height = disp_h;
     image_info.m_ori_width = disp_w;//origin size
+
+    const float scale_x = (float)disp_w / 512.0f;
+    const float scale_y = (float)disp_h / 512.0f;
+
     std::vector<Detection> results;//store processed result
+
     do
     {
-        while (!fcos_work_deque.empty() && !is_stop)
+        while (!is_stop)
         {
-            results.clear();
-            auto work = fcos_work_deque.front();
+            bpu_work work;
+            {
+                std::lock_guard<std::mutex> lk(fcos_mtx);
+                if (fcos_work_deque.empty()) break;
+                work = fcos_work_deque.front();
+                fcos_work_deque.pop_front();
+            }
+
             auto output = work.payload;
-            auto stime = work.start_time;
+            if (!output)
+            {
+                printf("ERROR:payload is nullpointer\n");
+                continue;
+            }
+
+            results.clear();
             fcos_post_process(output, &image_info, results);//do post process
-            fcos_work_deque.pop_front();
             sp_display_draw_rect(display, 0, 0, 0, 0, 3, 1, 0x00000000, 2);//flush display
-            if (debug) {
-                // fps
-                auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - stime).count();
+
+            if (debug)
+            {
+                auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::high_resolution_clock::now() - work.start_time).count();
                 double fps = 1000.0 / delta_time;
                 printf("fps:%lf,processing time:%ld\n", fps, delta_time);
             }
+
             for (size_t i = 0; i < results.size(); i++)
             {
                 sp_display_draw_rect(display, results[i].bbox.xmin, results[i].bbox.ymin,
                                      results[i].bbox.xmax, results[i].bbox.ymax, 3, 0, 0xFFFF0000, 2);//draw rectangle
             }
         }
-
     } while (!fcos_finish);
 }
 

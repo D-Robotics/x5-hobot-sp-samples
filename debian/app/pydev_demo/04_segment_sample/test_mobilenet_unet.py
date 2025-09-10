@@ -16,7 +16,10 @@
 # limitations under the License.
 ################################################################################
 
-from hobot_dnn import pyeasy_dnn
+try:
+    from hobot_dnn import pyeasy_dnn
+except ImportError:
+    from hobot_dnn_rdkx5 import pyeasy_dnn
 import numpy as np
 import cv2
 from PIL import Image

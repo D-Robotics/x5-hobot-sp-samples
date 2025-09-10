@@ -28,8 +28,14 @@ import time
 import subprocess
 
 # Camera API libs
-from hobot_vio import libsrcampy as srcampy
-from hobot_dnn import pyeasy_dnn
+try:
+    from hobot_vio import libsrcampy as srcampy
+except ImportError:
+    from hobot_vio_rdkx5 import libsrcampy as srcampy
+try:
+    from hobot_dnn import pyeasy_dnn
+except ImportError:
+    from hobot_dnn_rdkx5 import pyeasy_dnn
 fps = 30
 
 import ctypes

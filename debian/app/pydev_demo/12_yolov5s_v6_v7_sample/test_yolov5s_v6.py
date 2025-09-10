@@ -18,7 +18,10 @@
 
 import numpy as np
 import cv2
-from hobot_dnn import pyeasy_dnn as dnn
+try:
+    from hobot_dnn import pyeasy_dnn as dnn
+except ImportError:
+    from hobot_dnn_rdkx5 import pyeasy_dnn as dnn
 import time
 import ctypes
 import json 

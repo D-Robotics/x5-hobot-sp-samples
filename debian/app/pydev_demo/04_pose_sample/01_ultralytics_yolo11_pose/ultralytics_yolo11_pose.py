@@ -68,7 +68,7 @@ class YoloV11_Pose:
         # Inference thresholds and parameters
         self.score_thres = opt.score_thres
         self.conf_thres_raw = -np.log(1 / self.score_thres - 1)  # Sigmoid inverse
-        self.nms_thresh = opt.score_thres
+        self.nms_thresh = opt.nms_thres
         self.resize_type = 1
         self.reg = 16
 

@@ -183,19 +183,26 @@ def dequantize_tensor(q_tensor: np.ndarray, quant_info: QuantParams) -> np.ndarr
     @param quant_info Quantization parameters (scale, zero_point, axis, type).
     @return Dequantized tensor (float32).
     """
-    if quant_info.quant_type != 1:  # 1 indicates linear scale quantization
+    # Match by name: in hbm_runtime's hbDNNQuantiType, SCALE is 2 (NONE 0, SHIFT 1),
+    # so comparing the value with 1 skipped every SCALE output.
+    quant_type = quant_info.quant_type
+    if getattr(quant_type, "name", str(quant_type)) not in ("SCALE", "1"):
         return q_tensor
 
-    if quant_info.scale.ndim == 0 or q_tensor.ndim == 1 or quant_info.scale.size == 1:
+    scale = np.asarray(quant_info.scale, dtype=np.float32)
+    zero_point = np.asarray(quant_info.zero_point, dtype=np.float32)
+    if zero_point.size == 0:  # empty zero-point means symmetric quantization
+        zero_point = np.zeros(1, dtype=np.float32)
+
+    if scale.ndim == 0 or q_tensor.ndim == 1 or scale.size == 1:
         # Per-tensor dequantization
-        return (q_tensor.astype(np.float32) - quant_info.zero_point.astype(np.float32)) * quant_info.scale
+        return (q_tensor.astype(np.float32) - zero_point.reshape(-1)[0]) * scale.reshape(-1)[0]
     else:
         # Per-channel dequantization
         shape = [1] * q_tensor.ndim
         shape[quant_info.axis] = -1
-        scale = quant_info.scale.reshape(shape)
-        zero_point = quant_info.zero_point.reshape(shape)
-        return (q_tensor.astype(np.float32) - zero_point.astype(np.float32)) * scale
+        zero_point = zero_point.reshape(-1)[0] if zero_point.size == 1 else zero_point.reshape(shape)
+        return (q_tensor.astype(np.float32) - zero_point) * scale.reshape(shape)
 
 
 def dequantize_outputs(outputs: dict, quan_infos: dict) -> dict:
